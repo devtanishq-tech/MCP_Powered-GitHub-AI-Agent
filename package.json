@@ -12,7 +12,10 @@
     "typescript": "^5"
   },
   "dependencies": {
+    "@hono/mcp": "^0.3.2",
     "@modelcontextprotocol/client": "^2.0.0",
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "@modelcontextprotocol/server": "^2.0.0",
     "dotenv": "^17.4.2",
     "groq-sdk": "^1.6.0"
   }
