@@ -7,11 +7,19 @@ import {
 import { StdioClientTransport } from "@modelcontextprotocol/client/stdio";
 import type { ChatCompletion } from "groq-sdk/resources/chat.js";
 import type { ChatCompletionMessageParam } from "groq-sdk/resources/chat/completions";
-
+import readliner from "readline/promises";
+import { stdin, stdout } from "process";
 const groq_api_key = process.env.GROQ_API_KEY;
 if (!groq_api_key) {
   throw new Error(`API IS invlaid `);
 }
+type MCPResource = {
+  name: string;
+  title?: string;
+  uri: string;
+  description?: string;
+  mimeType?: string;
+};
 class MCPClient {
   private mcp: Client;
   private groq: Groq;
@@ -20,6 +28,7 @@ class MCPClient {
     | StreamableHTTPClientTransport
     | null = null;
   private tools: ChatCompletionTool[] = [];
+  private resource: MCPResource[] = [];
 
   constructor() {
     this.groq = new Groq({
@@ -44,10 +53,19 @@ class MCPClient {
         args: ["run", serverScriptPath],
       });
       await this.mcp.connect(this.transport); // basically this is used to connect the client to the mcp server
-
+      const resouseResult = await this.mcp.listResources();
       const toolsResult = await this.mcp.listTools();
       // console.log(`Tools result`, toolsResult);
       // console.log(`---------------------------`);
+      this.resource = resouseResult.resources.map((current) => {
+        return {
+          name: current.name,
+          title: current.title,
+          uri: current.uri,
+          description: current.description,
+          mimeType: current.mimeType,
+        };
+      });
       this.tools = toolsResult.tools.map((current) => {
         return {
           type: "function",
@@ -70,16 +88,61 @@ class MCPClient {
 
   //============================================//
   async processingQuery(query: string) {
+    const resourceInfo = this.resource
+      .map((resource) => {
+        return `
+          Name: ${resource.name}
+          Title: ${resource.title}
+          URI: ${resource.uri}
+          Description: ${resource.description}
+          MIME Type: ${resource.mimeType}
+`;
+      })
+      .join("\n");
+    //============================================//
     const messages: ChatCompletionMessageParam[] = [
+      {
+        role: "system",
+        content: `
+              You have access to the following MCP resources:
+
+              ${resourceInfo}
+
+              If the user's question requires information from one of these resources,
+              you can request that resource using the read_mcp_resource tool.
+`,
+      },
       {
         role: "user",
         content: query,
       },
     ];
+    //===============================
+    const resourceTool: ChatCompletionTool = {
+      type: "function",
+      function: {
+        name: "read_mcp_resource",
+        description:
+          "Read the contents of an MCP resource. Use this when the user's question requires information contained in an available MCP resource.",
+        parameters: {
+          type: "object",
+          properties: {
+            uri: {
+              type: "string",
+              description: "The URI of the MCP resource to read",
+            },
+          },
+          required: ["uri"],
+        },
+      },
+    };
+    //==============================
     const response = await this.groq.chat.completions.create({
-      model: "",
+      model: "openai/gpt-oss-120b",
       max_completion_tokens: 500,
-      tools: this.tools,
+      //========================
+      tools: [...this.tools, resourceTool],
+      //=====================
       messages: messages,
     });
     const aimessage = response.choices[0]?.message;
@@ -97,28 +160,57 @@ class MCPClient {
         finaltext.push(
           `Calling tool  ${toolName} with the argument ${toolArgument}`,
         );
-        const mcpresonse = await this.mcp.callTool({
-          name: toolName,
-          arguments: toolArgument,
-        });
+        let result;
+        if (toolcall.function.name === "read_mcp_resource") {
+          const mcpresourceR = await this.mcp.readResource({
+            uri: toolArgument.uri,
+          });
+          result = mcpresourceR.contents;
+        } else {
+          const mcptoolR = await this.mcp.callTool({
+            name: toolName,
+            arguments: toolArgument,
+          });
+          result = mcptoolR.content;
+        }
+        // const mcpresonse = await this.mcp.callTool({
+        //   name: toolName,
+        //   arguments: toolArgument,
+        // });
         messages.push({
           role: "tool",
           tool_call_id: toolcall.id,
-          content: JSON.stringify(mcpresonse.content),
+          content: JSON.stringify(result),
         });
-        const finalllmcall = await this.groq.chat.completions.create({
-          model: "",
-          max_completion_tokens: 2000,
-          messages: messages,
-        });
-        finaltext.push(finalllmcall.choices[0]?.message.content!);
       }
+      const finalllmcall = await this.groq.chat.completions.create({
+        model: "openai/gpt-oss-120b",
+        max_completion_tokens: 2000,
+        messages: messages,
+      });
+      finaltext.push(finalllmcall.choices[0]?.message.content!);
     }
     return finaltext.join("\n");
   }
-  // async chatLoop(){
-  //   const rl=
-  // }
+  async chatLoop() {
+    const rl = readliner.createInterface({ input: stdin, output: stdout });
+    try {
+      console.log("\nMCP Client Started!");
+      console.log("Type your queries or 'quit' to exit.");
+      while (true) {
+        const userMessage = await rl.question("ask question:");
+        if (userMessage === "exit") {
+          console.log(" exiting the chat interferace bye bye 👋👋");
+          break;
+        }
+        const finalData = await this.processingQuery(userMessage);
+        console.log(`Ai message : `, finalData);
+      }
+    } catch (err) {
+      console.log(`Some error happen at chatLop method`);
+      console.log(err);
+    }
+  }
 }
 
 async function main() {
@@ -130,5 +222,7 @@ async function main() {
   const argv2: any = process.argv[2];
   const mcpClient = new MCPClient();
   await mcpClient.connectToServer(argv2);
+  console.log(`-------------CHAT INTERFRANCE WINDOW BELOW `);
+  await mcpClient.chatLoop();
 }
 main();
