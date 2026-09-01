@@ -5,6 +5,8 @@ import {
   StreamableHTTPClientTransport,
 } from "@modelcontextprotocol/client";
 import { StdioClientTransport } from "@modelcontextprotocol/client/stdio";
+import type { ChatCompletion } from "groq-sdk/resources/chat.js";
+import type { ChatCompletionMessageParam } from "groq-sdk/resources/chat/completions";
 
 const groq_api_key = process.env.GROQ_API_KEY;
 if (!groq_api_key) {
@@ -12,7 +14,7 @@ if (!groq_api_key) {
 }
 class MCPClient {
   private mcp: Client;
-  private anthropic: Groq;
+  private groq: Groq;
   private transport:
     | StdioClientTransport
     | StreamableHTTPClientTransport
@@ -20,7 +22,7 @@ class MCPClient {
   private tools: ChatCompletionTool[] = [];
 
   constructor() {
-    this.anthropic = new Groq({
+    this.groq = new Groq({
       apiKey: groq_api_key,
     });
     this.mcp = new Client({ name: "first_mcp_client", version: "1-0-0-0" });
@@ -41,46 +43,92 @@ class MCPClient {
         command: "bun",
         args: ["run", serverScriptPath],
       });
-      await this.mcp.connect(this.transport); // this is where connection between mcp client with local transport
+      await this.mcp.connect(this.transport); // basically this is used to connect the client to the mcp server
 
       const toolsResult = await this.mcp.listTools();
-      console.log(`Tools result`, toolsResult);
-      // this.tools = toolsResult.tools.map((tool) => {
-      //   return {
-      //     name: tool.name,
-      //     description: tool.description,
-      //     input_schema: tool.inputSchema,
-      //   };
-      // });
-      // console.log(
-      //   "Connected to server with tools:",
-      //   this.tools.map(({ name }) => name),
-      // );
+      // console.log(`Tools result`, toolsResult);
+      // console.log(`---------------------------`);
+      this.tools = toolsResult.tools.map((current) => {
+        return {
+          type: "function",
+          function: {
+            name: current.name,
+            description: current.description,
+            parameters: current.inputSchema,
+          },
+        };
+      });
+      console.log(`Numeber of tools  listed below :`);
+      console.log(
+        this.tools.map((current) => current.function?.name).join("\n"),
+      );
     } catch (e) {
       console.log("Failed to connect to MCP server: ", e);
       throw e;
     }
   }
+
   //============================================//
+  async processingQuery(query: string) {
+    const messages: ChatCompletionMessageParam[] = [
+      {
+        role: "user",
+        content: query,
+      },
+    ];
+    const response = await this.groq.chat.completions.create({
+      model: "",
+      max_completion_tokens: 500,
+      tools: this.tools,
+      messages: messages,
+    });
+    const aimessage = response.choices[0]?.message;
+    const finaltext: string[] = [];
+    messages.push(aimessage!);
+    if (aimessage?.content) {
+      // means normal message given by the ai
+      finaltext.push(aimessage.content);
+    }
+    // now we check does tool call called by the llm or not
+    if (aimessage?.tool_calls) {
+      for (let toolcall of aimessage.tool_calls) {
+        const toolName = toolcall.function.name;
+        const toolArgument = JSON.parse(toolcall.function.arguments);
+        finaltext.push(
+          `Calling tool  ${toolName} with the argument ${toolArgument}`,
+        );
+        const mcpresonse = await this.mcp.callTool({
+          name: toolName,
+          arguments: toolArgument,
+        });
+        messages.push({
+          role: "tool",
+          tool_call_id: toolcall.id,
+          content: JSON.stringify(mcpresonse.content),
+        });
+        const finalllmcall = await this.groq.chat.completions.create({
+          model: "",
+          max_completion_tokens: 2000,
+          messages: messages,
+        });
+        finaltext.push(finalllmcall.choices[0]?.message.content!);
+      }
+    }
+    return finaltext.join("\n");
+  }
+  // async chatLoop(){
+  //   const rl=
+  // }
 }
+
 async function main() {
   if (process.argv.length < 3) {
     console.log("Usage: node index.ts <path_to_server_script>");
     return;
   }
+  // here argv is the path that we passing inside the connect server file
   const argv2: any = process.argv[2];
   const mcpClient = new MCPClient();
   await mcpClient.connectToServer(argv2);
-  // try {
-  //   await mcpClient.connectToServer(process.argv[2]);
-  //   await mcpClient.chatLoop();
-  // } catch (e) {
-  //   console.error("Error:", e);
-  //   await mcpClient.cleanup();
-  //   process.exit(1);
-  // } finally {
-  //   await mcpClient.cleanup();
-  //   process.exit(0);
-  // }
 }
 main();
