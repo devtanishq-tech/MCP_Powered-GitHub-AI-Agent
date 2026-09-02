@@ -1,14 +1,19 @@
 import { Groq } from "groq-sdk/client.js";
-import type { ChatCompletionTool } from "groq-sdk/resources/chat/completions";
+
 import {
   Client,
   StreamableHTTPClientTransport,
+  type Transport,
 } from "@modelcontextprotocol/client";
 import { StdioClientTransport } from "@modelcontextprotocol/client/stdio";
-import type { ChatCompletion } from "groq-sdk/resources/chat.js";
+import type {
+  ChatCompletion,
+  ChatCompletionTool,
+} from "groq-sdk/resources/chat.js";
 import type { ChatCompletionMessageParam } from "groq-sdk/resources/chat/completions";
 import readliner from "readline/promises";
 import { stdin, stdout } from "process";
+import { url } from "inspector";
 const groq_api_key = process.env.GROQ_API_KEY;
 if (!groq_api_key) {
   throw new Error(`API IS invlaid `);
@@ -40,8 +45,11 @@ class MCPClient {
   // now goint to implement the  connection function
 
   //============================================//
-  async connectToServer(serverScriptPath: string) {
-    try {
+  async connectToServer(
+    serverScriptPath: string,
+    typeofUrl: `local` | `remote`,
+  ) {
+    if (typeofUrl === "local") {
       const isJs = serverScriptPath.endsWith(".ts");
       const isPy = serverScriptPath.endsWith(".py");
       if (!isJs && !isPy) {
@@ -52,7 +60,13 @@ class MCPClient {
         command: "bun",
         args: ["run", serverScriptPath],
       });
-      await this.mcp.connect(this.transport); // basically this is used to connect the client to the mcp server
+    } else if (typeofUrl === "remote") {
+      this.transport = new StreamableHTTPClientTransport(
+        new URL(serverScriptPath),
+      );
+    }
+    try {
+      await this.mcp.connect(this.transport as Transport); // basically this is used to connect the client to the mcp server
       const resouseResult = await this.mcp.listResources();
       const toolsResult = await this.mcp.listTools();
       // console.log(`Tools result`, toolsResult);
@@ -76,10 +90,6 @@ class MCPClient {
           },
         };
       });
-      console.log(`Numeber of tools  listed below :`);
-      console.log(
-        this.tools.map((current) => current.function?.name).join("\n"),
-      );
     } catch (e) {
       console.log("Failed to connect to MCP server: ", e);
       throw e;
@@ -101,6 +111,22 @@ class MCPClient {
       .join("\n");
     //============================================//
     const messages: ChatCompletionMessageParam[] = [
+      {
+        role: "system",
+        content: `You are a personal AI assistant connected to the user's MCP server.
+                  The MCP server provides access to the owner's personal and private information.
+                  Answer the user's questions accurately and naturally.
+                  Use an MCP resource when the required information is stored in a resource.
+                  Use an MCP tool when an action or tool-based operation is required.
+                  Before answering, decide whether an MCP resource or tool is needed.
+                  If relevant MCP data is available, retrieve it instead of guessing.
+                  Treat the information returned by MCP as the source of truth.
+                  Never invent or assume private information about the owner.
+                  If the requested information is unavailable, clearly say so.
+                  After receiving MCP data, use it to provide a concise and helpful answer.
+                  Do not call MCP tools or resources when they are unnecessary.
+`,
+      },
       {
         role: "system",
         content: `
@@ -221,8 +247,7 @@ async function main() {
   // here argv is the path that we passing inside the connect server file
   const argv2: any = process.argv[2];
   const mcpClient = new MCPClient();
-  await mcpClient.connectToServer(argv2);
-  console.log(`-------------CHAT INTERFRANCE WINDOW BELOW `);
+  await mcpClient.connectToServer(argv2, "remote");
   await mcpClient.chatLoop();
 }
 main();
