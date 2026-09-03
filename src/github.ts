@@ -1,4 +1,3 @@
-import { cachedDataVersionTag } from "node:v8";
 import { Octokit } from "octokit";
 const token = process.env.GITHUB_ACCESS_TOKEN;
 if (!token) {
@@ -11,6 +10,7 @@ export async function getUserProfile() {
   const response = await github.rest.users.getAuthenticated();
   console.log(`get user Porfile data`);
   console.log(response.data);
+  console.log(`------------------------------`);
   const userData = {
     id: response.data.id,
     username: response.data.login,
@@ -84,21 +84,33 @@ async function listIssues(owner: string, repo: string) {
     const response = await github.rest.issues.listForRepo({
       owner,
       repo,
-      state: "all",
+      state: "all", // it means i want both open and close issue
       per_page: 10,
     });
-    console.log(`----list issue data `);
-    for (let current of response.data) {
-      console.log(current);
-    }
+    console.log(`--------------------------------------------------------`);
     console.log(response.data);
-    return response.data;
+    console.log(`-------------------------------------------------------`);
+    console.log(response.data.length);
+    return response.data.map((issue) => ({
+      IssueNumber: issue.number,
+      title: issue.title,
+      state: issue.state,
+      ownerName: issue.user?.login,
+      ownerGithubProfile: issue.html_url,
+      IssueMainContent: issue.body,
+      comments: issue.comments,
+      labels: issue.labels.map((label) =>
+        typeof label === "string" ? label : label.name,
+      ),
+      createdAt: issue.created_at,
+      updatedAt: issue.updated_at,
+    }));
   } catch (err) {
     console.error("Some error occur at listIsuses function");
     console.log(err);
   }
 }
-// 5. Get issue
+// 5. Get issue, used to find the one specific issue , suppose want the issue one , based on that it return the content  of that data
 export async function getIssue(
   owner: string,
   repo: string,
@@ -109,16 +121,32 @@ export async function getIssue(
     repo,
     issue_number: issueNumber,
   });
-
-  return response.data;
+  const issue = response.data;
+  return {
+    number: issue.number,
+    title: issue.title,
+    state: issue.state,
+    author: issue.user?.login,
+    body: issue.body,
+    url: issue.html_url,
+    comments: issue.comments,
+    labels: issue.labels.map((label) =>
+      typeof label === "string" ? label : label.name,
+    ),
+    createdAt: issue.created_at,
+    updatedAt: issue.updated_at,
+    closedAt: issue.closed_at,
+  };
 }
-
-// 6. Search code
-export async function searchCode(query: string) {
+// 6. Search code inside one repository.
+export async function searchCode(owner: string, repo: string, query: string) {
+  // The code-search endpoint scopes results through the `repo:` qualifier.
+  // `owner` and `repo` are not endpoint parameters, so passing them as fields
+  // does not restrict the search.
   const response = await github.rest.search.code({
-    q: query,
+    q: `${query} repo:${owner}/${repo}`,
   });
-
+  console.log(response.data);
   return response.data;
 }
 
@@ -148,4 +176,7 @@ export async function createIssue(
 
   return response.data;
 }
-listIssues("devtanishq-tech", "mcp-application");
+// Call searchCode(...) from the application instead of running a request when
+// this module is imported.
+// searchCode("devtanishq-tech", "mcp-application", "github");
+searchCode("devtanishq-tech", "mcp-application", "listIssues");
