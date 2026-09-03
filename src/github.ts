@@ -140,14 +140,21 @@ export async function getIssue(
 }
 // 6. Search code inside one repository.
 export async function searchCode(owner: string, repo: string, query: string) {
-  // The code-search endpoint scopes results through the `repo:` qualifier.
-  // `owner` and `repo` are not endpoint parameters, so passing them as fields
-  // does not restrict the search.
   const response = await github.rest.search.code({
     q: `${query} repo:${owner}/${repo}`,
   });
-  console.log(response.data);
-  return response.data;
+  return {
+    totalMatches: response.data.total_count,
+    incompleteResults: response.data.incomplete_results,
+    results: response.data.items.map((item) => ({
+      fileName: item.name,
+      path: item.path,
+      sha: item.sha,
+      githubUrl: item.html_url,
+      repository: item.repository.full_name,
+      score: item.score,
+    })),
+  };
 }
 
 // 7. List pull requests
