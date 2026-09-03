@@ -1,3 +1,4 @@
+import { convertProcessSignalToExitCode } from "node:util";
 import { Octokit } from "octokit";
 const token = process.env.GITHUB_ACCESS_TOKEN;
 if (!token) {
@@ -92,7 +93,7 @@ async function listIssues(owner: string, repo: string) {
     console.log(`-------------------------------------------------------`);
     console.log(response.data.length);
     return response.data.map((issue) => ({
-      IssueNumber: issue.number,
+      issue_number: issue.number,
       title: issue.title,
       state: issue.state,
       ownerName: issue.user?.login,
@@ -123,7 +124,7 @@ export async function getIssue(
   });
   const issue = response.data;
   return {
-    number: issue.number,
+    issue_number: issue.number,
     title: issue.title,
     state: issue.state,
     author: issue.user?.login,
@@ -156,18 +157,6 @@ export async function searchCode(owner: string, repo: string, query: string) {
     })),
   };
 }
-
-// 7. List pull requests
-export async function listPullRequests(owner: string, repo: string) {
-  const response = await github.rest.pulls.list({
-    owner,
-    repo,
-  });
-
-  return response.data;
-}
-
-// 8. Create issue
 export async function createIssue(
   owner: string,
   repo: string,
@@ -180,10 +169,13 @@ export async function createIssue(
     title,
     body,
   });
-
-  return response.data;
+  console.log(response.data);
+  return {
+    issueNumber: response.data.number,
+    title: response.data.title,
+    state: response.data.state,
+    issueurl: response.data.html_url,
+    createdAt: response.data.created_at,
+    updated_at: response.data.updated_at,
+  };
 }
-// Call searchCode(...) from the application instead of running a request when
-// this module is imported.
-// searchCode("devtanishq-tech", "mcp-application", "github");
-searchCode("devtanishq-tech", "mcp-application", "listIssues");
