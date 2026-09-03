@@ -4,9 +4,11 @@ const token = process.env.GITHUB_ACCESS_TOKEN;
 if (!token) {
   throw new Error("GITHUB_TOKEN is missing from .env");
 }
+//==================================GITHUB CLIENT INTEGRATION //==========================
 export const github = new Octokit({
   auth: token,
 });
+//================================== Github Tools Functions================================
 export async function getUserProfile() {
   const response = await github.rest.users.getAuthenticated();
   console.log(`get user Porfile data`);
@@ -25,7 +27,7 @@ export async function getUserProfile() {
   console.log(userData);
   return userData;
 }
-async function githubListRepo() {
+export async function githubListRepo() {
   const repodata = await github.rest.repos.listForAuthenticatedUser({
     per_page: 20,
   });
@@ -51,7 +53,7 @@ async function githubListRepo() {
   }
   return listrepo;
 }
-async function getRepo(owner: string, repo: string) {
+export async function getRepo(owner: string, repo: string) {
   const repoo = await github.rest.repos.get({ owner, repo });
   console.log("-------------------------------");
   return {
@@ -78,9 +80,7 @@ async function getRepo(owner: string, repo: string) {
   };
 }
 // make sure inside the getRepo , argument  must be stricty correct
-
-//==================================================================================//
-async function listIssues(owner: string, repo: string) {
+export async function listIssues(owner: string, repo: string) {
   try {
     const response = await github.rest.issues.listForRepo({
       owner,
@@ -88,10 +88,6 @@ async function listIssues(owner: string, repo: string) {
       state: "all", // it means i want both open and close issue
       per_page: 10,
     });
-    console.log(`--------------------------------------------------------`);
-    console.log(response.data);
-    console.log(`-------------------------------------------------------`);
-    console.log(response.data.length);
     return response.data.map((issue) => ({
       issue_number: issue.number,
       title: issue.title,

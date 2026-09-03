@@ -330,16 +330,6 @@ server.registerTool(
     };
   },
 );
-//=======================================NOW  WE ARE CALLING THE FUNCTIION , WHERE WE CONNECT THE SERVER AND MAKE IT TRANSFEREABLE =======
-// async function main() {
-//   const transport = new StdioServerTransport();
-//   await server.connect(transport);
-//   console.error("Tanishq_JAISWAL MCP server has started ");
-// }
-// main().catch((error) => {
-//   console.error("Fata errol has occur", error);
-//   process.exit(1);
-// });
 async function main() {
   const app = new Hono();
   const transport = new StreamableHTTPTransport();
