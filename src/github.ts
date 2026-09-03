@@ -79,11 +79,13 @@ async function getRepo(owner: string, repo: string) {
 // make sure inside the getRepo , argument  must be stricty correct
 
 //==================================================================================//
-export async function listIssues(owner: string, repo: string) {
+async function listIssues(owner: string, repo: string) {
   try {
     const response = await github.rest.issues.listForRepo({
       owner,
       repo,
+      state: "all",
+      per_page: 10,
     });
     console.log(`----list issue data `);
     for (let current of response.data) {
