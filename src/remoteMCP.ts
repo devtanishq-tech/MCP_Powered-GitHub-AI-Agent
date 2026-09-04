@@ -5,7 +5,6 @@ import {
 import { students } from "./student";
 import { actor } from "./adultStar";
 //-----------------the type of transport layer you are using we import that ----
-import { StdioServerTransport } from "@modelcontextprotocol/server/stdio";
 import { StreamableHTTPTransport } from "@hono/mcp";
 import z, { registry } from "zod";
 

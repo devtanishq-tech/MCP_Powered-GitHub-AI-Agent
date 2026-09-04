@@ -143,7 +143,7 @@ class MCPClient {
         content: query,
       },
     ];
-    //===============================
+    //============================== this is the additional tools thatr are sending from the client side ===========================
     const resourceTool: ChatCompletionTool = {
       type: "function",
       function: {
