@@ -113,30 +113,13 @@ class MCPClient {
     const messages: ChatCompletionMessageParam[] = [
       {
         role: "system",
-        content: `You are a personal AI assistant connected to the user's MCP server.
-                  The MCP server provides access to the owner's personal and private information.
-                  Answer the user's questions accurately and naturally.
-                  Use an MCP resource when the required information is stored in a resource.
-                  Use an MCP tool when an action or tool-based operation is required.
-                  Before answering, decide whether an MCP resource or tool is needed.
-                  If relevant MCP data is available, retrieve it instead of guessing.
-                  Treat the information returned by MCP as the source of truth.
-                  Never invent or assume private information about the owner.
-                  If the requested information is unavailable, clearly say so.
-                  After receiving MCP data, use it to provide a concise and helpful answer.
-                  Do not call MCP tools or resources when they are unnecessary.
-`,
+        content: `You are a personal AI assistant connected to the user's MCP server, which holds the owner's private data. Use a tool/resource only when the query needs it; never invent private info. GitHub tools: if you don't already have the exact owner and repo name, call github_list_repos first to resolve them before calling any other GitHub tool — never guess owner/repo.`,
       },
       {
         role: "system",
-        content: `
-              You have access to the following MCP resources:
-
-              ${resourceInfo}
-
-              If the user's question requires information from one of these resources,
-              you can request that resource using the read_mcp_resource tool.
-`,
+        content: resourceInfo
+          ? `Available MCP resources (use read_mcp_resource with the URI when needed): ${resourceInfo}`
+          : "No MCP resources are currently available.",
       },
       {
         role: "user",
@@ -163,23 +146,42 @@ class MCPClient {
       },
     };
     //==============================
-    const response = await this.groq.chat.completions.create({
-      model: "openai/gpt-oss-120b",
-      max_completion_tokens: 500,
-      //========================
-      tools: [...this.tools, resourceTool],
-      //=====================
-      messages: messages,
-    });
-    const aimessage = response.choices[0]?.message;
+    const allTools = [...this.tools, resourceTool];
     const finaltext: string[] = [];
-    messages.push(aimessage!);
-    if (aimessage?.content) {
-      // means normal message given by the ai
-      finaltext.push(aimessage.content);
-    }
-    // now we check does tool call called by the llm or not
-    if (aimessage?.tool_calls) {
+
+    // Sequential tool-call loop: keep `tools` attached on every round trip so
+    // the model can see a tool's result and decide to call another tool,
+    // instead of stopping after a single round of tool calls.
+    const MAX_STEPS = 5; // safety cap against infinite tool-call loops
+    for (let step = 0; step < MAX_STEPS; step++) {
+      const response = await this.groq.chat.completions.create({
+        model: "openai/gpt-oss-120b",
+        reasoning_effort: "low",
+        max_completion_tokens: 2000,
+        //========================
+        tools: allTools,
+        //=====================
+        messages: messages,
+      });
+      console.log(
+        `--------------------trying to see how many tokes they have use here `,
+      );
+      console.log(response);
+      console.log(`-----------------------------------------------------`);
+      const aimessage = response.choices[0]?.message;
+      messages.push(aimessage!);
+
+      if (aimessage?.content) {
+        // means normal message given by the ai
+        finaltext.push(aimessage.content);
+      }
+
+      // now we check does tool call called by the llm or not
+      if (!aimessage?.tool_calls || aimessage.tool_calls.length === 0) {
+        // no more tools requested -> this is the final answer
+        break;
+      }
+
       for (let toolcall of aimessage.tool_calls) {
         const toolName = toolcall.function.name;
         const toolArgument = JSON.parse(toolcall.function.arguments);
@@ -199,23 +201,16 @@ class MCPClient {
           });
           result = mcptoolR.content;
         }
-        // const mcpresonse = await this.mcp.callTool({
-        //   name: toolName,
-        //   arguments: toolArgument,
-        // });
         messages.push({
           role: "tool",
           tool_call_id: toolcall.id,
           content: JSON.stringify(result),
         });
       }
-      const finalllmcall = await this.groq.chat.completions.create({
-        model: "openai/gpt-oss-120b",
-        max_completion_tokens: 2000,
-        messages: messages,
-      });
-      finaltext.push(finalllmcall.choices[0]?.message.content!);
+      // loop back around so the model can see these tool results and
+      // decide whether it needs to call another tool
     }
+
     return finaltext.join("\n");
   }
   async chatLoop() {
@@ -238,7 +233,6 @@ class MCPClient {
     }
   }
 }
-
 async function main() {
   if (process.argv.length < 3) {
     console.log("Usage: node index.ts <path_to_server_script>");

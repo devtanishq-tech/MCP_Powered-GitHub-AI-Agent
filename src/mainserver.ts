@@ -6,6 +6,7 @@ import { registerCoreTools } from "./tools/coretools";
 
 import { registerVacationPrompt } from "./prompts/vacationPrompt";
 import { registerEmailPrompt } from "./prompts/emailPrompt";
+import { registerGithubTools } from "./tools/githubtool";
 
 import { registerProfileResources } from "./resources/profileResources";
 
@@ -20,6 +21,7 @@ const server = new McpServer({
 //===================================================MCP SERVER  CAPABILITIES ================================
 
 registerCoreTools(server);
+registerGithubTools(server);
 registerVacationPrompt(server);
 registerEmailPrompt(server);
 registerProfileResources(server);

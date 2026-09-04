@@ -10,9 +10,6 @@ export const github = new Octokit({
 //================================== Github Tools Functions================================
 export async function getUserProfile() {
   const response = await github.rest.users.getAuthenticated();
-  console.log(`get user Porfile data`);
-  console.log(response.data);
-  console.log(`------------------------------`);
   const userData = {
     id: response.data.id,
     username: response.data.login,
@@ -23,7 +20,6 @@ export async function getUserProfile() {
     followers: response.data.followers,
     following: response.data.following,
   };
-  console.log(userData);
   return userData;
 }
 export async function githubListRepo() {
@@ -47,9 +43,6 @@ export async function githubListRepo() {
       pushedAt: repo.pushed_at,
     };
   });
-  for (let current of listrepo) {
-    console.log(current);
-  }
   return listrepo;
 }
 export async function getRepo(owner: string, repo: string) {
