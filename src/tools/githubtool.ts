@@ -14,10 +14,7 @@ export function registerGithubTools(server: McpServer) {
     "github_get_my_profile",
     {
       title: "Github User Profile Tool",
-      description: `user this tool ,whenever user query is about
-        user profile from github 
-        
-        `,
+      description: "Get the authenticated user's GitHub profile.",
     },
     async () => {
       const userData = await getUserProfile();
@@ -66,14 +63,7 @@ export function registerGithubTools(server: McpServer) {
     "github_get_repo",
     {
       title: "Get GitHub Repository Details",
-      description: `Use this tool when you already know the EXACT owner and repo name, and 
-        need full details about that one repository — including tech stack 
-        (language), description, stars, forks, topics, and timestamps. Requires 
-        exact owner and repo name — never guess these values. If you don't 
-        already know the exact owner/repo (e.g. the user described the repo 
-        vaguely instead of naming it), call github_list_repos first to find the 
-        matching repository, then call this tool with the exact values from 
-        that result.`,
+      description: `Get details for one GitHub repository. Requires the exact owner and repository name.`,
       inputSchema: z.object({
         owner: z
           .string()
@@ -104,7 +94,7 @@ export function registerGithubTools(server: McpServer) {
     {
       title: "List GitHub Issues",
       description:
-        "Use this tool to list issues (both open and closed) for a specific GitHub repository. Returns up to 10 issues with issue number, title, state, author, body, comment count, labels, and timestamps. Requires exact owner and repo name — never guess these. If the user refers to the repo by a vague or descriptive name instead of its exact name, call github_list_repos first to find the matching repository, then use its exact owner/name here. Use this tool when the user asks to see issues in general, or when you need to find a specific issue's number before calling github_get_issue.",
+        "List open and closed issues for a GitHub repository. Requires the exact owner and repository name.",
       inputSchema: z.object({
         owner: z
           .string()
@@ -127,7 +117,7 @@ export function registerGithubTools(server: McpServer) {
     {
       title: "Get GitHub Issue Details",
       description:
-        "Use this tool when the user asks for full details about ONE specific issue and you already know its exact issue number. Returns the issue's full body, author, comments, labels, and timestamps. Requires exact owner, repo, and issueNumber — never guess these. If you don't already know the exact issue number (e.g. the user described the issue by topic instead of number), call github_list_issues first to find the matching issue, then use its issue_number here. If you don't know the exact owner/repo either, call github_list_repos first.",
+        "Get details for one GitHub issue. Requires the exact owner, repository name, and issue number.",
       inputSchema: z.object({
         owner: z
           .string()
@@ -155,7 +145,7 @@ export function registerGithubTools(server: McpServer) {
     {
       title: "Search Code in GitHub Repository",
       description:
-        "Use this tool to search for specific code, function names, filenames, or text content WITHIN one specific GitHub repository. Returns matching file names, paths, and links. Requires exact owner and repo name — never guess these. If the user refers to the repo by a vague or descriptive name (e.g. 'my trading app', 'the bot I built') instead of its exact name, call github_list_repos first to find the matching repository, then use its exact owner/name here. Only use this tool when the user wants to find something INSIDE a repo's code — not for repo metadata like tech stack (use github_get_repo or github_list_repos for that) and not for issues (use github_list_issues/github_get_issue for that).",
+        "Search for code or filenames inside one GitHub repository. Requires the exact owner, repository name, and search query.",
       inputSchema: z.object({
         owner: z
           .string()
@@ -183,7 +173,7 @@ export function registerGithubTools(server: McpServer) {
     {
       title: "Create GitHub Issue",
       description:
-        "Use this tool ONLY when the user explicitly asks to create, file, open, or report a new issue on a GitHub repository — this is a write action that creates real, visible data on GitHub, not a read/lookup action. Requires exact owner, repo, and a title (body is optional). Never guess owner/repo — if the user refers to the repo by a vague or descriptive name, call github_list_repos first to find the matching repository, then use its exact owner/name here. Do not call this tool speculatively or to answer informational questions.",
+        "Create a GitHub issue. Use only when the user explicitly asks to create one. Requires exact owner, repository name, and title.",
       inputSchema: z.object({
         owner: z
           .string()
