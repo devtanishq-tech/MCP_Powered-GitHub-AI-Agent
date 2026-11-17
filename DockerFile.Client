@@ -1,0 +1,19 @@
+
+# 1. Base image
+FROM oven/bun:1
+
+# 2. Working directory
+WORKDIR /app
+
+# 3. Copy dependency manifests
+COPY package.json bun.lock ./
+
+# 4. Install dependencies
+RUN bun install --frozen-lockfile
+
+# 5. Copy source code
+COPY src ./src
+COPY tsconfig.json ./
+
+# 6. Start MCP Client
+CMD ["bun", "run", "src/client.ts", "http://mcp-server:8080/services"]

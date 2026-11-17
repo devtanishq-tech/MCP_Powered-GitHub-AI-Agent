@@ -1,0 +1,35 @@
+services:
+  mcp-server:
+    image: mcp-server:latest
+
+    build:
+      context: .
+      dockerfile: DockerFile.Server
+
+    container_name: mcp-server
+
+    ports:
+      - "8080:8080"
+
+    environment:
+      GITHUB_ACCESS_TOKEN: ${GITHUB_ACCESS_TOKEN}
+
+    restart: unless-stopped
+
+  mcp-client:
+    image: mcp-client:latest
+
+    build:
+      context: .
+      dockerfile: DockerFile.Client
+
+    container_name: mcp-client
+
+    environment:
+      GROQ_API_KEY: ${GROQ_API_KEY}
+
+    depends_on:
+      - mcp-server
+
+    stdin_open: true
+    tty: true
